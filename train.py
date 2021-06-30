@@ -19,9 +19,9 @@ def train(epoch,
     
     for i, (mels, wavs) in enumerate(tqdm(train_loader)):
         mels, wavs = mels.to(device), wavs.to(device)
-        targets =  MuLawEncoding()(wavs.squeeze())
-        inp_wavs = torch.cat([torch.zeros(wavs.shape[0], 1, 1).to(device), wavs[:, :, :-1]], dim=2)
-        inp_wavs = MuLawEncoding()(inp_wavs).float()
+        inp_wavs =  MuLawEncoding()(wavs).float()
+        targets = torch.cat([wavs[:, :, 1:], torch.zeros(wavs.shape[0], 1, 1).to(device)], dim=2)
+        targets = MuLawEncoding()(targets.squeeze())
 
         optimizer.zero_grad()
 

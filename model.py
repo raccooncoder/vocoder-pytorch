@@ -15,21 +15,31 @@ class WaveNetBlock(nn.Module):
                  ):
         super().__init__()
         
+        self.residual_channels = residual_channels
+        
         self.dilation = dilation
-        self.gated_act = lambda x: torch.tanh(x) * torch.sigmoid(x)
+        self.gated_act = lambda x1, y1, x2, y2: torch.tanh(x1 + y1) * torch.sigmoid(x2 + y2)
         
         self.cond_conv = nn.Conv1d(melspec_config.n_mels, 2 * residual_channels, kernel_size=1)
         self.dilated_conv = nn.Conv1d(residual_channels, 2  * residual_channels, kernel_size=2, 
                                       dilation=dilation, padding=dilation)
         
-        self.skip_conv = nn.Conv1d(2 * residual_channels, skip_channels, kernel_size=1)
-        self.res_conv = nn.Conv1d(2 * residual_channels, residual_channels, kernel_size=1)
+        self.skip_conv = nn.Conv1d(residual_channels, skip_channels, kernel_size=1)
+        self.res_conv = nn.Conv1d(residual_channels, residual_channels, kernel_size=1)
         
     def forward(self, cond, wav):
         cond_out = self.cond_conv(cond)
         dilated_out = self.dilated_conv(wav)[:, :, :-self.dilation]
         
-        out = self.gated_act(cond_out + dilated_out)
+        cond_out_sigmoid = cond_out[:, :self.residual_channels, :]
+        cond_out_tanh = cond_out[:, self.residual_channels:, :]
+        dilated_out_sigmoid = dilated_out[:, :self.residual_channels, :]
+        dilated_out_tanh = dilated_out[:, self.residual_channels:, :]
+        
+        out = self.gated_act(cond_out_sigmoid, 
+                             dilated_out_sigmoid, 
+                             cond_out_tanh, 
+                             dilated_out_tanh)
         
         skip_out = self.skip_conv(out)
         res_out = self.res_conv(out) + wav
@@ -44,7 +54,6 @@ class WaveNet(nn.Module):
                  upsample_stride=256,
                  skip_channels=240, 
                  residual_channels=120,
-                 audio_channels=256,
                  num_dilations=8,
                  num_blocks=16,
                  num_classes=256
@@ -66,12 +75,12 @@ class WaveNet(nn.Module):
         
         self.wav_conv = nn.Conv1d(1, residual_channels, kernel_size=1)
         
-        self.block_list = []
+        self.block_list = nn.ModuleList()
         
         self.receptive_field = 1
         
         for i in range(num_blocks):
-            dilation = 2 ** (i % 8)
+            dilation = 2 ** (i % num_dilations)
             self.receptive_field += dilation 
             block = WaveNetBlock(dilation).to(device)
             self.block_list.append(block)
@@ -108,7 +117,11 @@ class WaveNet(nn.Module):
             
             outputs = self.forward(wav.unsqueeze(1), cond=cond[:, :, i:i + wav.shape[-1]])
             
-            cur_pred = MuLawDecoding()(outputs[:, :, -1].data.max(1, keepdim=True)[1])
+            dist = torch.distributions.Categorical(probs=F.softmax(outputs[:, :, -1].squeeze()))
+            outputs = dist.sample()
+            print(outputs.shape)
+            
+            cur_pred = MuLawDecoding()(outputs)
             pred[:, i] = cur_pred
             
         return pred

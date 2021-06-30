@@ -16,7 +16,7 @@ from model import WaveNet
 from train import train, test
 
 num_epochs = 20
-batch_size = 4
+batch_size = 8
 
 import wandb
 wandb.init(project="tts-dlaudio")
@@ -33,7 +33,6 @@ def set_seed(seed):
 set_seed(13)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#device='cpu'
 
 print(device)
 
@@ -66,8 +65,8 @@ for epoch in range(num_epochs):
           model,
           device,
           optimizer,
-          error,
-          )
+          error)
+
     if (epoch + 1) % 4 == 0:
         test(epoch,
              test_dataset,
