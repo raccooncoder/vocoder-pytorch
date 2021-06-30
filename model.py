@@ -1,3 +1,11 @@
+import torch
+from torch import nn 
+import torch.nn.functional as F
+from tqdm import tqdm
+
+from melspec import MelSpectrogramConfig
+from torchaudio.transforms import MuLawDecoding
+
 class WaveNetBlock(nn.Module):
     def __init__(self,
                  dilation,
@@ -29,7 +37,8 @@ class WaveNetBlock(nn.Module):
         return skip_out, res_out
         
 class WaveNet(nn.Module):
-    def __init__(self, 
+    def __init__(self,
+                 device, 
                  melspec_config,
                  upsample_kernel_size=800,
                  upsample_stride=256,
@@ -42,6 +51,7 @@ class WaveNet(nn.Module):
                  ):
         super().__init__()
         
+        self.device = device
         self.melspec_config = melspec_config
         self.skip_channels = skip_channels
         
@@ -76,7 +86,7 @@ class WaveNet(nn.Module):
             
         res_out = self.wav_conv(wav)
         
-        skip_sum = torch.zeros(wav.shape[0], self.skip_channels, wav.shape[-1]).to(device)
+        skip_sum = torch.zeros(wav.shape[0], self.skip_channels, wav.shape[-1]).to(self.device)
         
         for block in self.block_list:
             skip_out, res_out = block(cond, res_out)
@@ -90,7 +100,7 @@ class WaveNet(nn.Module):
     def inference(self, mel):
         cond = self.upsample(mel)
         
-        pred = torch.zeros(cond.shape[0], cond.shape[-1]).to(device)
+        pred = torch.zeros(cond.shape[0], cond.shape[-1]).to(self.device)
         
         for i in tqdm(range(cond.shape[-1])):
             wav = pred[:, max(0, i + 1 - self.receptive_field) : i + 1]

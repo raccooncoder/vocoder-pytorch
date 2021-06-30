@@ -1,4 +1,17 @@
-def train(epoch, log_freq=50):
+import wandb
+import torch
+from tqdm import tqdm
+from torchaudio.transforms import MuLawEncoding
+
+
+def train(epoch,
+          train_loader,
+          model,
+          device,
+          optimizer, 
+          error,
+          log_freq=50
+          ):
     model.train() #don't forget to switch between train and eval!
     
     running_loss = 0.0 #more accurate representation of current loss than loss.item()
@@ -35,7 +48,11 @@ def train(epoch, log_freq=50):
             running_loss = 0.0
             running_correct = 0.0
             
-def test(epoch):
+def test(epoch,
+         test_dataset,
+         model,
+         device
+         ):
     model.eval()
     
     mel, wav = test_dataset[0]
@@ -46,6 +63,7 @@ def test(epoch):
         pred = model.inference(mel.unsqueeze(0)).squeeze(0).detach().cpu().numpy()
     
     wandb.log({"examples": [wandb.Audio(pred, caption="Epoch {}".format(epoch), sample_rate=22050)]})
-    #ipd.Audio(pred, rate=22050)
+    
+    torch.save(model.state_dict(), 'checkpoints/wavenet_epoch{}.pt'.format(epoch))
     
     return pred

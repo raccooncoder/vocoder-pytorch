@@ -1,1 +1,1 @@
-docker build -t kws_pytorch .
+docker build -t vocoder_pytorch .

@@ -1,3 +1,10 @@
+import torch 
+from torch import nn
+
+from dataclasses import dataclass
+import torchaudio
+import librosa
+
 @dataclass
 class MelSpectrogramConfig:
     sr: int = 22050
