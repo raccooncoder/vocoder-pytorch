@@ -119,7 +119,7 @@ class WaveNet(nn.Module):
             
             dist = torch.distributions.Categorical(probs=F.softmax(outputs[:, :, -1].squeeze()))
             outputs = dist.sample()
-            print(outputs.shape)
+            #print(outputs.shape)
             
             cur_pred = MuLawDecoding()(outputs)
             pred[:, i] = cur_pred
