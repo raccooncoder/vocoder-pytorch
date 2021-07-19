@@ -18,7 +18,7 @@ class WaveNetBlock(nn.Module):
         self.residual_channels = residual_channels
         
         self.dilation = dilation
-        self.gated_act = lambda x1, y1, x2, y2: torch.tanh(x1 + y1) * torch.sigmoid(x2 + y2)
+        self.gated_act = lambda x, y: torch.tanh(x) * torch.sigmoid(y)
         
         self.cond_conv = nn.Conv1d(melspec_config.n_mels, 2 * residual_channels, kernel_size=1)
         self.dilated_conv = nn.Conv1d(residual_channels, 2  * residual_channels, kernel_size=2, 
@@ -30,16 +30,12 @@ class WaveNetBlock(nn.Module):
     def forward(self, cond, wav):
         cond_out = self.cond_conv(cond)
         dilated_out = self.dilated_conv(wav)[:, :, :-self.dilation]
-        
-        cond_out_sigmoid = cond_out[:, :self.residual_channels, :]
-        cond_out_tanh = cond_out[:, self.residual_channels:, :]
-        dilated_out_sigmoid = dilated_out[:, :self.residual_channels, :]
-        dilated_out_tanh = dilated_out[:, self.residual_channels:, :]
-        
-        out = self.gated_act(cond_out_sigmoid, 
-                             dilated_out_sigmoid, 
-                             cond_out_tanh, 
-                             dilated_out_tanh)
+
+        out = cond_out + dilated_out
+        out_tanh = out[:, :self.residual_channels, :]
+        out_sigmoid = out[:, self.residual_channels:, :]
+
+        out = self.gated_act(out_tanh, out_sigmoid)
         
         skip_out = self.skip_conv(out)
         res_out = self.res_conv(out) + wav
